@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TinyURL Service</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f9;
+      max-width: 700px;
+      margin: auto;
+      padding: 2rem;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+
+    .tabs {
+      display: flex;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 1rem;
+      background: #e0e0e0;
+      cursor: pointer;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background 0.3s ease;
+    }
+
+    .tab svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .tab.active {
+      background: #007bff;
+      color: white;
+    }
+
+    .tab-content {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s ease;
+      display: none;
+      background: #fff;
+      padding: 1rem;
+      border-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .tab-content.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    input, button {
+      width: 100%;
+      padding: 0.6rem;
+      margin: 0.4rem 0;
+      font-size: 1rem;
+    }
+
+    button {
+      background: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1e7e34;
+    }
+
+    .result, .error {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 5px;
+    }
+
+    .result { background: #e6ffed; color: #1a662a; }
+    .error { background: #ffe6e6; color: #c00; }
+
+    a.button-link {
+      display: inline-block;
+      margin-top: 0.6rem;
+      background: #007bff;
+      color: white;
+      padding: 0.4rem 1rem;
+      text-decoration: none;
+      border-radius: 4px;
+    }
+
+    a.button-link:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔗 TinyURL Service</h1>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('shorten')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 12h16m0 0l-4-4m4 4l-4 4"/>
+      </svg>
+      Shorten
+    </div>
+    <div class="tab" onclick="switchTab('resolve')">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 16l-4-4 4-4m8 8l4-4-4-4"/>
+      </svg>
+      Resolve
+    </div>
+  </div>
+
+  <!-- Shorten Tab -->
+  <div id="shorten" class="tab-content active">
+    <input type="text" id="longUrl" placeholder="Enter long URL" />
+    <input type="number" id="expiryDays" placeholder="Expiry in days (optional)" />
+    <input type="text" id="customAlias" placeholder="Custom alias (optional)" />
+    <button onclick="shortenURL()">Shorten</button>
+    <div id="shortenResult" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- Resolve Tab -->
+  <div id="resolve" class="tab-content">
+    <input type="text" id="shortCode" placeholder="Enter short code" />
+    <button onclick="resolveShortCode()">Resolve</button>
+    <div id="resolveResult" class="result" style="display:none;"></div>
+  </div>
+
+  <div id="errorMessage" class="error" style="display:none;"></div>
+
+  <script>
+    const apiBase = "http://localhost:8000";
+
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(tc => tc.classList.remove("active"));
+
+      document.querySelector(`.tab[onclick*="${tabId}"]`).classList.add("active");
+      document.getElementById(tabId).classList.add("active");
+
+      hideMessages();
+    }
+
+    function hideMessages() {
+      document.getElementById('shortenResult').style.display = 'none';
+      document.getElementById('resolveResult').style.display = 'none';
+      document.getElementById('errorMessage').style.display = 'none';
+    }
+
+    function showError(msg) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = msg;
+      errorDiv.style.display = 'block';
+    }
+
+    async function shortenURL() {
+      const url = document.getElementById('longUrl').value;
+      const expiry = document.getElementById('expiryDays').value;
+      const custom = document.getElementById('customAlias').value;
+      const query = custom ? `?custom=${encodeURIComponent(custom)}` : '';
+
+      hideMessages();
+
+      try {
+        const res = await fetch(`${apiBase}/shorten${query}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: url,
+            expiry_days: expiry ? parseInt(expiry) : null
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          const resultDiv = document.getElementById('shortenResult');
+          resultDiv.innerHTML = `
+            Shortened URL: <a href="${data.short_url}" target="_blank">${data.short_url}</a><br/>
+            <a href="${data.short_url.replace(apiBase, apiBase + '/redirect')}" class="button-link" target="_blank">Redirect Now</a>
+          `;
+          resultDiv.style.display = 'block';
+        } else {
+          showError(data.detail || 'Error shortening URL');
+        }
+      } catch (err) {
+        showError('Network error');
+      }
+    }
+
+    async function resolveShortCode() {
+      const code = document.getElementById('shortCode').value.trim();
+      if (!code) return showError('Please enter a short code');
+      hideMessages();
+
+      try {
+        const res = await fetch(`${apiBase}/${code}`);
+        const data = await res.json();
+
+        if (res.ok) {
+          const resultDiv = document.getElementById('resolveResult');
+          resultDiv.innerHTML = `
+            Long URL: <a href="${data.long_url}" target="_blank">${data.long_url}</a><br/>
+            <a href="${apiBase}/redirect/${code}" class="button-link" target="_blank">Redirect Now</a>
+          `;
+          resultDiv.style.display = 'block';
+        } else {
+          showError(data.detail || 'Short code not found or expired');
+        }
+      } catch (err) {
+        showError('Network error');
+      }
+    }
+  </script>
+
+</body>
+</html>
